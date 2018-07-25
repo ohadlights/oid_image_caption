@@ -25,7 +25,7 @@ class DataProvider:
         self.object_embeddings = np.load(objects_embeddings_path)
 
         content = [l.strip().split(',') for l in open(vocab_path).readlines()]
-        self.object_id_to_embeddings_index = {content[i][1]: i for i in range(len(content))}
+        self.object_id_to_embeddings_index = {content[i][0]: [int(a) for a in content[i][1].split()] for i in range(len(content))}
 
         random.seed(42)
 
@@ -40,13 +40,34 @@ class DataProvider:
         for i in range(self.current_index, self.current_index+self.batch_size):
             data = self.data[i]
 
+            # image embeddings
+
             image_id = data[0]
             image_embedding_path = os.path.join(self.image_embeddings_dir, image_id + '.jpg.npy')
             image_embeddings += [np.load(image_embedding_path)]
 
-            object_1_emb = self.object_embeddings[self.object_id_to_embeddings_index[data[1]]]
-            object_2_emb = self.object_embeddings[self.object_id_to_embeddings_index[data[2]]]
+            # object embeddings
+
+            object_1_emb = None
+            object_2_emb = None
+
+            emb_indexes_1 = self.object_id_to_embeddings_index[data[1]]
+            for index in emb_indexes_1:
+                if object_1_emb is None:
+                    object_1_emb = self.object_embeddings[index]
+                else:
+                    object_1_emb += self.object_embeddings[index]
+
+            emb_indexes_2 = self.object_id_to_embeddings_index[data[2]]
+            for index in emb_indexes_2:
+                if object_2_emb is None:
+                    object_2_emb = self.object_embeddings[index]
+                else:
+                    object_2_emb += self.object_embeddings[index]
+
             objects_embeddings += [np.concatenate((object_1_emb, object_2_emb))]
+
+            # labels
 
             labels += [data[3]]
 
