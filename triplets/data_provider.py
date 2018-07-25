@@ -81,4 +81,4 @@ class DataProvider:
         return self.object_embeddings.shape[1]
 
     def get_num_classes(self):
-        return len(self.labels)
+        return max(self.labels) + 1
