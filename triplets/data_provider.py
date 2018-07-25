@@ -22,7 +22,7 @@ class DataProvider:
         self.data = data
         self.labels = labels
 
-        self.object_embeddings = np.load(objects_embeddings_path)
+        self.object_embeddings = np.load(objects_embeddings_path).astype(np.float32)
 
         content = [l.strip().split(',') for l in open(vocab_path).readlines()]
         self.object_id_to_embeddings_index = {content[i][0]: [int(a) for a in content[i][1].split()] for i in range(len(content))}
@@ -65,11 +65,15 @@ class DataProvider:
                 else:
                     object_2_emb += self.object_embeddings[index]
 
-            objects_embeddings += [np.concatenate((object_1_emb, object_2_emb))]
+            objects_embeddings += [np.stack((object_1_emb, object_2_emb))]
 
             # labels
 
             labels += [data[3]]
+
+            # increment index
+
+            self.current_index += 1
 
         return np.array(image_embeddings), np.array(objects_embeddings), np.array(labels)
 
