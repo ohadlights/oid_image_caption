@@ -11,18 +11,23 @@ class DataProvider:
 
         content = [l.strip().split(',') for l in open(annotations_csv_path).readlines()]
         data = []
+        labels = set()
         for a in content:
             image_id = a[0]
             object_1 = a[1]
             object_2 = a[2]
             label = int(a[-1])
             data += [(image_id, object_1, object_2, label)]
+            labels.add(label)
         self.data = data
+        self.labels = labels
 
         self.object_embeddings = np.load(objects_embeddings_path)
 
         content = [l.strip().split(',') for l in open(vocab_path).readlines()]
         self.object_id_to_embeddings_index = {content[i][1]: i for i in range(len(content))}
+
+        random.seed(42)
 
     def next_epoch(self):
         random.shuffle(self.data)
@@ -37,12 +42,18 @@ class DataProvider:
 
             image_id = data[0]
             image_embedding_path = os.path.join(self.image_embeddings_dir, image_id + '.jpg.npy')
-            image_embeddings += np.load(image_embedding_path)
+            image_embeddings += [np.load(image_embedding_path)]
 
             object_1_emb = self.object_embeddings[self.object_id_to_embeddings_index[data[1]]]
             object_2_emb = self.object_embeddings[self.object_id_to_embeddings_index[data[2]]]
             objects_embeddings += [np.concatenate((object_1_emb, object_2_emb))]
 
-            labels += data[3]
+            labels += [data[3]]
 
         return np.array(image_embeddings), np.array(objects_embeddings), np.array(labels)
+
+    def get_object_embedding_size(self):
+        return self.object_embeddings.shape[1]
+
+    def get_num_classes(self):
+        return len(self.labels)
