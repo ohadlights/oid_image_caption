@@ -16,11 +16,10 @@ def print_train_status(sess,
                        iteration,
                        log_events_each_iterations=500):
 
-    if batch % 200 == 0:
+    if batch % log_events_each_iterations == 0:
         # Print status to stdout.
         print('[{0}/{1}] loss = {2:.3f} / accuracy = {3:.3f}'.format(batch, batch_count, loss_value, accuracy_value))
 
-    if batch % log_events_each_iterations == 0:
         # Update the events file.
         summary_str = sess.run(summary, feed_dict=feed_dict)
         summary_writer.add_summary(summary_str, global_step=iteration)
@@ -82,6 +81,7 @@ def main(args):
 
         net = slim.fully_connected(inputs=net, num_outputs=1024)
         net = slim.fully_connected(inputs=net, num_outputs=512)
+        net = slim.dropout(inputs=net, keep_prob=0.8)
         net = slim.fully_connected(inputs=net, num_outputs=num_classes, activation_fn=None)
 
     # loss
@@ -89,14 +89,16 @@ def main(args):
     loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=relationships_labels, logits=net))
     reg_loss = tf.reduce_sum(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
 
-    tf.summary.scalar('softmax_loss', loss)
-    tf.summary.scalar('reg_loss', reg_loss)
+    tf.summary.scalar('loss/softmax_loss', loss)
+    tf.summary.scalar('loss/reg_loss', reg_loss)
 
     loss = loss + reg_loss
 
     # accuracy
 
-    pass
+    equality = tf.equal(tf.argmax(slim.softmax(net), 1, output_type=tf.int32), relationships_labels)
+    accuracy = tf.reduce_mean(tf.cast(equality, tf.float32))
+    tf.summary.scalar('accuracy/classification', accuracy)
 
     # train op
 
@@ -115,6 +117,10 @@ def main(args):
     with tf.Session() as sess:
 
         tf.global_variables_initializer().run()
+        latest = tf.train.latest_checkpoint(args.logs_dir)
+        if latest:
+            print('restore checkpoint: {}'.format(latest))
+            saver.restore(sess, latest)
 
         summary_writer = tf.summary.FileWriter(args.logs_dir, sess.graph)
 
@@ -129,12 +135,12 @@ def main(args):
                     relationships_labels: batch_labels
                 }
 
-                _, loss_value = sess.run([train_op, loss], feed_dict=feed_dict)
+                _, loss_value, accuracy_value = sess.run([train_op, loss, accuracy], feed_dict=feed_dict)
 
                 iteration = tf.train.global_step(sess, global_step)
 
-                print_train_status(sess, batch, args.steps_per_epoch, loss_value, 0, summary, feed_dict,
-                                   summary_writer, iteration, 100)
+                print_train_status(sess, batch, args.steps_per_epoch, loss_value, accuracy_value, summary, feed_dict,
+                                   summary_writer, iteration, 250)
 
             saver.save(sess=sess, save_path=os.path.join(args.logs_dir, 'model.ckpt'), global_step=global_step)
 
@@ -151,7 +157,7 @@ if __name__ == '__main__':
     parser.add_argument('--image_embedding_size', type=int, default=4320)
 
     parser.add_argument('--weight_decay', type=float, default=0.0001)
-    parser.add_argument('--batch_size', type=int, default=32)
+    parser.add_argument('--batch_size', type=int, default=16)
     parser.add_argument('--epoches', type=int, default=50)
     parser.add_argument('--steps_per_epoch', type=int, default=10000)
 
