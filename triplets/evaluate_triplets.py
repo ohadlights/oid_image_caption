@@ -44,6 +44,10 @@ def main(args):
         print('restore checkpoint: {}'.format(latest))
         tf.train.Saver().restore(sess, latest)
 
+        # call next_epoch to shuffle the data
+
+        data_provider.next_epoch()
+
         # predict on examples
 
         all_labels = np.zeros((data_provider.get_num_examples()))
