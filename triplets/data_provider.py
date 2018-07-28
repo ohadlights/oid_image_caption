@@ -9,7 +9,7 @@ class DataProvider:
         self.image_embeddings_dir = image_embeddings_dir
         self.current_index = 0
 
-        content = [l.strip().split(',') for l in open(annotations_csv_path).readlines()]
+        content = [l.strip().split(',') for l in open(annotations_csv_path).readlines()[1:]]
         data = []
         labels = set()
         for a in content:
@@ -37,7 +37,7 @@ class DataProvider:
         image_embeddings = []
         objects_embeddings = []
         labels = []
-        for i in range(self.current_index, self.current_index+self.batch_size):
+        for i in range(self.current_index, min(self.current_index+self.batch_size, len(self.data))):
             data = self.data[i]
 
             # image embeddings
@@ -82,3 +82,6 @@ class DataProvider:
 
     def get_num_classes(self):
         return max(self.labels) + 1
+
+    def get_num_examples(self):
+        return len(self.data)
