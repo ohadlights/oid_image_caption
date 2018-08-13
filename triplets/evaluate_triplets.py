@@ -1,9 +1,8 @@
 import argparse
-import numpy as np
-from tqdm import tqdm
 import tensorflow as tf
 from triplets.data_provider import DataProvider
 from triplets.model_v1 import build_model
+from triplets.evaluate_triplets_model import evaluate_model
 
 
 def main(args):
@@ -14,7 +13,8 @@ def main(args):
                                  args.batch_size,
                                  args.image_embeddings_dir,
                                  args.objects_embeddings_path,
-                                 args.vocab_path)
+                                 args.vocab_path,
+                                 embedding_extension='.jpg.npy')
     object_embedding_size = data_provider.get_object_embedding_size()
     num_classes = data_provider.get_num_classes()
 
@@ -44,35 +44,15 @@ def main(args):
         print('restore checkpoint: {}'.format(latest))
         tf.train.Saver().restore(sess, latest)
 
-        # call next_epoch to shuffle the data
+        # evaluate
 
-        data_provider.next_epoch()
-
-        # predict on examples
-
-        all_labels = np.zeros((data_provider.get_num_examples()))
-        all_preds = np.zeros((data_provider.get_num_examples(), data_provider.get_num_classes()))
-
-        num_examples = min(args.max_samples, data_provider.get_num_examples())
-        for batch in tqdm(range(0, num_examples, args.batch_size)):
-
-            batch_image_embeddings, batch_object_embeddings, batch_labels = data_provider.next_batch()
-
-            all_labels[batch:batch + args.batch_size] = batch_labels
-
-            feed_dict = {
-                image_embeddings: batch_image_embeddings,
-                object_embeddings: batch_object_embeddings,
-            }
-
-            results = sess.run(predictions, feed_dict=feed_dict)
-            all_preds[batch:batch+args.batch_size, :] = results
-
-        # accuracy
-
-        equality = tf.equal(tf.argmax(all_preds, 1, output_type=tf.int32), all_labels)
-        accuracy = tf.reduce_mean(tf.cast(equality, tf.float32))
-        print('accuracy = {}'.format(sess.run(accuracy)))
+        evaluate_model(predictions,
+                       image_embeddings=image_embeddings,
+                       object_embeddings=object_embeddings,
+                       data_provider=data_provider,
+                       sess=sess,
+                       batch_size=args.batch_size,
+                       max_samples=args.max_samples)
 
 
 if __name__ == '__main__':
@@ -87,6 +67,6 @@ if __name__ == '__main__':
     parser.add_argument('--image_embedding_size', type=int, default=4320)
 
     parser.add_argument('--batch_size', type=int, default=16)
-    parser.add_argument('--max_samples', type=int, default=20000)
+    parser.add_argument('--max_samples', type=int, default=100000)
 
     main(parser.parse_args())

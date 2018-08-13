@@ -4,10 +4,12 @@ import numpy as np
 
 
 class DataProvider:
-    def __init__(self, annotations_csv_path, batch_size, image_embeddings_dir, objects_embeddings_path, vocab_path):
+    def __init__(self, annotations_csv_path, batch_size, image_embeddings_dir, objects_embeddings_path, vocab_path,
+                 embedding_extension=''):
         self.batch_size = batch_size
         self.image_embeddings_dir = image_embeddings_dir
         self.current_index = 0
+        self.embedding_extension = embedding_extension
 
         content = [l.strip().split(',') for l in open(annotations_csv_path).readlines()[1:]]
         data = []
@@ -43,7 +45,7 @@ class DataProvider:
             # image embeddings
 
             image_id = data[0]
-            image_embedding_path = os.path.join(self.image_embeddings_dir, image_id + '.jpg.npy')
+            image_embedding_path = os.path.join(self.image_embeddings_dir, image_id) + self.embedding_extension
             image_embeddings += [np.load(image_embedding_path)]
 
             # object embeddings

@@ -4,6 +4,7 @@ import tensorflow as tf
 import tensorflow.contrib.slim as slim
 from triplets.data_provider import DataProvider
 from triplets.model_v1 import build_model
+from triplets.evaluate_triplets_model import evaluate_model
 
 
 def print_train_status(sess,
@@ -39,6 +40,12 @@ def main(args):
     object_embedding_size = data_provider.get_object_embedding_size()
     num_classes = data_provider.get_num_classes()
 
+    val_data_provider = DataProvider(args.annotations_csv_path_val,
+                                     args.batch_size,
+                                     args.image_embeddings_dir,
+                                     args.objects_embeddings_path,
+                                     args.vocab_path)
+
     # placeholders
 
     global_step = tf.Variable(0, name='global_step', trainable=False)
@@ -73,9 +80,10 @@ def main(args):
 
     # accuracy
 
-    equality = tf.equal(tf.argmax(slim.softmax(net), 1, output_type=tf.int32), relationships_labels)
+    predictions = slim.softmax(net)
+    equality = tf.equal(tf.argmax(predictions, 1, output_type=tf.int32), relationships_labels)
     accuracy = tf.reduce_mean(tf.cast(equality, tf.float32))
-    tf.summary.scalar('accuracy/classification', accuracy)
+    tf.summary.scalar('accuracy/train', accuracy)
 
     # train op
 
@@ -121,11 +129,21 @@ def main(args):
 
             saver.save(sess=sess, save_path=os.path.join(args.logs_dir, 'model.ckpt'), global_step=global_step)
 
+            # evaluate
+
+            # evaluate_model(predictions,
+            #                image_embeddings=image_embeddings,
+            #                object_embeddings=object_embeddings,
+            #                data_provider=val_data_provider,
+            #                sess=sess,
+            #                batch_size=args.batch_size)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--annotations_csv_path', type=str, required=True)
+    parser.add_argument('--annotations_csv_path_val', type=str, required=True)
     parser.add_argument('--image_embeddings_dir', type=str, required=True)
     parser.add_argument('--objects_embeddings_path', type=str, required=True)
     parser.add_argument('--vocab_path', type=str, required=True)
@@ -133,7 +151,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--image_embedding_size', type=int, default=4320)
 
-    parser.add_argument('--weight_decay', type=float, default=0.0001)
+    parser.add_argument('--weight_decay', type=float, default=0.0005)
     parser.add_argument('--batch_size', type=int, default=16)
     parser.add_argument('--epoches', type=int, default=50)
     parser.add_argument('--steps_per_epoch', type=int, default=10000)
