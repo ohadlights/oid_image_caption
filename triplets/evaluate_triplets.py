@@ -1,7 +1,7 @@
 import argparse
 import tensorflow as tf
 from triplets.data_provider import DataProvider
-from triplets.model_v1 import build_model
+from triplets.model_v1 import ModelV1
 from triplets.evaluate_triplets_model import evaluate_model
 
 
@@ -20,37 +20,18 @@ def main(args):
 
     # Build model
 
-    image_embeddings = tf.placeholder(dtype=tf.float32,
-                                      shape=(None, args.image_embedding_size),
-                                      name='image_embeddings')
-    object_embeddings = tf.placeholder(dtype=tf.float32,
-                                       shape=(None, 2, object_embedding_size),
-                                       name='object_embeddings')
-
-    net = build_model(image_embeddings=image_embeddings,
-                      object_embeddings=object_embeddings,
-                      num_classes=num_classes,
-                      is_training=False)
-
-    predictions = tf.nn.softmax(net)
-
-    # start session
-
-    with tf.Session() as sess:
-
-        # restore model
-
-        latest = tf.train.latest_checkpoint(args.checkpoints_dir)
-        print('restore checkpoint: {}'.format(latest))
-        tf.train.Saver().restore(sess, latest)
+    with ModelV1(image_embedding_size=args.image_embedding_size,
+                 object_embedding_size=object_embedding_size,
+                 num_classes=num_classes,
+                 checkpoints_dir=args.checkpoints_dir) as model:
 
         # evaluate
 
-        evaluate_model(predictions,
-                       image_embeddings=image_embeddings,
-                       object_embeddings=object_embeddings,
+        evaluate_model(model.predictions,
+                       image_embeddings=model.image_embeddings,
+                       object_embeddings=model.object_embeddings,
                        data_provider=data_provider,
-                       sess=sess,
+                       sess=model.sess,
                        batch_size=args.batch_size,
                        max_samples=args.max_samples)
 

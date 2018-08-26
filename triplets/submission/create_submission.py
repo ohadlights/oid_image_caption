@@ -16,8 +16,10 @@ import argparse
 from itertools import permutations
 
 import numpy as np
+from tqdm import tqdm
 
 from triplets.submission.utils import parse_prediction_line
+from triplets.model_v1 import ModelV1
 
 
 def filter_relevant_class_ids(class_ids, boxes):
@@ -35,7 +37,21 @@ def filter_out_duplicate_class_ids(boxes):
 
 
 def build_box_permutations(boxes):
-    return list(permutations(boxes))
+    perms = list(permutations(boxes, r=2))
+
+    # need to remove duplicated perms! (0,1) == (1,0)
+
+    filtered = []
+    filtered_keys = set()
+    for a, b in perms:
+        key_1 = '{}.{}'.format(a.class_id, b.class_id)
+        key_2 = '{}.{}'.format(b.class_id, a.class_id)
+        if key_1 not in filtered_keys and key_2 not in filtered_keys:
+            filtered_keys.add(key_1)
+            filtered_keys.add(key_2)
+            filtered += [(a, b)]
+
+    return filtered
 
 
 def build_permutations(input_predictions, class_ids):
@@ -45,12 +61,17 @@ def build_permutations(input_predictions, class_ids):
         boxes = parse_prediction_line(boxes_data)
         boxes = filter_relevant_class_ids(class_ids=class_ids, boxes=boxes)
         boxes = filter_out_duplicate_class_ids(boxes)
-        perms = build_box_permutations(boxes)
-        all_permutations += [(l[0], perms)]
+        if len(boxes) > 1:
+            perms = build_box_permutations(boxes)
+            all_permutations += [(l[0], perms)]
     return all_permutations
 
 
 def main(args):
+
+    # Output
+
+    output_path = os.path.join('submission_files', os.path.basename(args.input_predictions))
 
     # Generate permutations from input predictions
 
@@ -70,20 +91,47 @@ def main(args):
 
     # Build model
 
+    with ModelV1(image_embedding_size=args.image_embedding_size,
+                 object_embedding_size=object_embeddings.shape[1],
+                 num_classes=len(relationship_index_to_id),
+                 checkpoints_dir=args.checkpoints_dir) as model:
 
+        with open(output_path, 'w') as f:
+
+            for image, perms in tqdm(images_perms):
+
+                for box_1, box_2 in perms:
+
+                    image_embedding_path = os.path.join(args.image_embeddings_dir, image + '.jpg.npy')
+                    image_embeddings = np.load(image_embedding_path)
+
+                    object_1_embeddings = object_embeddings[object_id_to_embeddings_index[box_1.class_id]]
+                    if len(object_1_embeddings) > 1:
+                        object_1_embeddings = np.expand_dims(object_1_embeddings[0], axis=0)
+                    object_2_embeddings = object_embeddings[object_id_to_embeddings_index[box_2.class_id]]
+                    if len(object_2_embeddings) > 1:
+                        object_2_embeddings = np.expand_dims(object_2_embeddings[0], axis=0)
+                    objects_embeddings = np.stack((object_1_embeddings, object_2_embeddings), axis=1)
+
+                    feed_dict = {
+                        model.image_embeddings: np.array([image_embeddings]),
+                        model.object_embeddings: objects_embeddings
+                    }
+
+                    results = model.sess.run(model.predictions, feed_dict=feed_dict)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--input_predictions', default=r'D:\Projects\OpenImagesChallenge\keras-yolo3\submission\merged\2018-08-24_20-10-00.csv')
+    parser.add_argument('--input_predictions', required=True)
     parser.add_argument('--class_ids_path', default=r'X:\OpenImages\rel\challenge-2018-classes-vrd.csv')
     parser.add_argument('--relationships_ids_path', default=r'X:\OpenImages\rel\labels.txt')
 
-    parser.add_argument('--image_embeddings_dir', type=str, required=True)
+    parser.add_argument('--image_embeddings_dir', default=r'X:\OpenImages\embeddings\pnasnet_large\challenge2018')
     parser.add_argument('--image_embedding_size', type=int, default=4320)
 
-    parser.add_argument('--objects_embeddings_path', type=str, required=True)
-    parser.add_argument('--vocab_path', type=str, required=True)
+    parser.add_argument('--objects_embeddings_path', default=r'X:\OpenImages\embeddings\words_lm_1b\embeddings_char_cnn.npy')
+    parser.add_argument('--vocab_path', default=r'X:\OpenImages\rel\vocab_with_object_ids.txt')
 
     parser.add_argument('--checkpoints_dir', type=str, required=True)
 

@@ -47,3 +47,40 @@ def build_model(image_embeddings,
             net = slim.fully_connected(inputs=net, num_outputs=num_classes, activation_fn=None)
 
             return net
+
+
+class ModelV1:
+    def __init__(self,
+                 image_embedding_size,
+                 object_embedding_size,
+                 num_classes,
+                 checkpoints_dir=None):
+
+        self.image_embeddings = tf.placeholder(dtype=tf.float32,
+                                               shape=(None, image_embedding_size),
+                                               name='image_embeddings')
+        self.object_embeddings = tf.placeholder(dtype=tf.float32,
+                                                shape=(None, 2, object_embedding_size),
+                                                name='object_embeddings')
+
+        self.net = build_model(image_embeddings=self.image_embeddings,
+                               object_embeddings=self.object_embeddings,
+                               num_classes=num_classes,
+                               is_training=False)
+
+        self.predictions = tf.nn.softmax(self.net)
+
+        self.checkpoints_dir = checkpoints_dir
+
+        self.sess = None
+
+    def __enter__(self):
+        self.sess = tf.Session()
+        if self.checkpoints_dir:
+            latest = tf.train.latest_checkpoint(self.checkpoints_dir)
+            print('restore checkpoint: {}'.format(latest))
+            tf.train.Saver().restore(self.sess, latest)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.sess.close()
