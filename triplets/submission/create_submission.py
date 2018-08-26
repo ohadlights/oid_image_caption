@@ -64,6 +64,8 @@ def build_permutations(input_predictions, class_ids):
         if len(boxes) > 1:
             perms = build_box_permutations(boxes)
             all_permutations += [(l[0], perms)]
+        else:
+            all_permutations += [(l[0], [])]
     return all_permutations
 
 
@@ -100,6 +102,8 @@ def main(args):
 
             for image, perms in tqdm(images_perms):
 
+                f.write('{},'.format(image))
+
                 for box_1, box_2 in perms:
 
                     image_embedding_path = os.path.join(args.image_embeddings_dir, image + '.jpg.npy')
@@ -119,6 +123,10 @@ def main(args):
                     }
 
                     results = model.sess.run(model.predictions, feed_dict=feed_dict)
+
+                    print(results[0])
+
+                f.write('\n')
 
 
 if __name__ == '__main__':
